@@ -7,11 +7,14 @@
 * Itagaki Fumihiko 24-Sep-92  ドライブを予め検査するのはやめた。
 *                             どうしたって完全にはチェックできないので。
 * 1.1
+* Itagaki Fumihiko 29-Sep-92  読み込み専用やシステム属性が付いていても削除するようにした。
+* 1.2
 *
 * Usage: rmdir [ -ps ] [ - ] <パス名> ...
 
 .include doscall.h
 .include error.h
+.include stat.h
 .include chrcode.h
 
 .xref DecodeHUPAIR
@@ -265,32 +268,61 @@ werror_1:
 		rts
 *****************************************************************
 do_rmdir:
+		move.l	d1,-(a7)
+		bsr	lgetmode
+		move.l	d0,d1
+		bmi	do_rmdir_return
+
+		moveq	#ENODIR,d0
+		btst	#MODEBIT_VOL,d1
+		bne	do_rmdir_return
+
+		btst	#MODEBIT_DIR,d1
+		beq	do_rmdir_return
+
+		btst	#MODEVAL_RDO,d1
+		bne	do_rmdir_1
+
+		btst	#MODEVAL_SYS,d1
+		bne	do_rmdir_1
+
+		moveq	#-1,d1
+		bra	do_rmdir_2
+
+do_rmdir_1:
+		moveq	#MODEVAL_DIR,d0
+		bsr	lchmod
+do_rmdir_2:
 		move.l	a0,-(a7)
 		DOS	_RMDIR
 		addq.l	#4,a7
-		cmp.l	#ENODIR,d0
-		bne	do_rmdir_return
+		tst.l	d0
+		bpl	do_rmdir_return
 
-		move.w	#-1,-(a7)
+		tst.l	d1
+		bmi	do_rmdir_return
+
+		exg	d0,d1
+		bsr	lchmod
+		exg	d0,d1
+do_rmdir_return:
+		move.l	(a7)+,d1
+		tst.l	d0
+		rts
+*****************************************************************
+lgetmode:
+		moveq	#-1,d0
+lchmod:
+		move.w	d0,-(a7)
 		move.l	a0,-(a7)
 		DOS	_CHMOD
 		addq.l	#6,a7
-		tst.l	d0
-		bmi	do_rmdir_nofile
-
-		moveq	#ENODIR,d0
-		bra	do_rmdir_return
-
-do_rmdir_nofile:
-		moveq	#ENOFILE,d0
-do_rmdir_return:
-		tst.l	d0
 		rts
 *****************************************************************
 .data
 
 	dc.b	0
-	dc.b	'## rmdir 1.1 ##  Copyright(C)1992 by Itagaki Fumihiko',0
+	dc.b	'## rmdir 1.2 ##  Copyright(C)1992 by Itagaki Fumihiko',0
 
 .even
 perror_table:
@@ -312,7 +344,7 @@ perror_table:
 	dc.w	msg_current-sys_errmsgs			*  15 (-16)
 	dc.w	msg_err-sys_errmsgs			*  16 (-17)
 	dc.w	msg_err-sys_errmsgs			*  17 (-18)
-	dc.w	msg_write_disabled-sys_errmsgs		*  18 (-19)
+	dc.w	msg_err-sys_errmsgs			*  18 (-19)
 	dc.w	msg_err-sys_errmsgs			*  19 (-20)
 	dc.w	msg_not_empty-sys_errmsgs		*  20 (-21)
 	dc.w	msg_err-sys_errmsgs			*  21 (-22)
@@ -327,9 +359,8 @@ msg_notdir:		dc.b	'ディレクトリではありません',0
 msg_bad_filename:	dc.b	'名前が無効です',0
 msg_bad_drive:		dc.b	'ドライブの指定が無効です',0
 msg_current:		dc.b	'カレント・ディレクトリですので削除できません',0
-msg_write_disabled:	dc.b	'削除は許可されていません',0
-msg_not_empty:		dc.b	'ディレクトリが空でないので削除できません',0
-msg_err:		dc.b	'削除できませんでした',0
+msg_not_empty:		dc.b	'ディレクトリが空でないので'
+msg_err:		dc.b	'削除できません',0
 msg_not_removed:	dc.b	' は削除しませんでした; ',0
 msg_whole_path_removed:	dc.b	'まるごと削除しました',0
 
