@@ -11,8 +11,11 @@
 * 1.2
 * Itagaki Fumihiko 06-Nov-92  strip_excessive_slashesのバグfixに伴う改版。
 * 1.3
+* Itagaki Fumihiko 20-Jan-93  GETPDB -> lea $10(a0),a0
+* Itagaki Fumihiko 20-Jan-93  引数 - と -- の扱いの変更
+* 1.4
 *
-* Usage: rmdir [ -ps ] [ - ] <パス名> ...
+* Usage: rmdir [ -ps ] [ -- ] <パス名> ...
 
 .include doscall.h
 .include error.h
@@ -34,8 +37,7 @@ start:
 		dc.b	'#HUPAIR',0
 start1:
 		lea	stack_bottom(pc),a7		*  A7 := スタックの底
-		DOS	_GETPDB
-		movea.l	d0,a0				*  A0 : PDBアドレス
+		lea	$10(a0),a0			*  A0 : PDBアドレス
 		move.l	a7,d0
 		sub.l	a0,d0
 		move.l	d0,-(a7)
@@ -66,10 +68,19 @@ decode_opt_loop1:
 		cmpi.b	#'-',(a0)
 		bne	decode_opt_done
 
+		tst.b	1(a0)
+		beq	decode_opt_done
+
 		subq.l	#1,d7
 		addq.l	#1,a0
 		move.b	(a0)+,d0
+		cmp.b	#'-',d0
+		bne	decode_opt_loop2
+
+		tst.b	(a0)+
 		beq	decode_opt_done
+
+		subq.l	#1,a0
 decode_opt_loop2:
 		moveq	#0,d1
 		cmp.b	#'p',d0
@@ -324,7 +335,7 @@ lchmod:
 .data
 
 	dc.b	0
-	dc.b	'## rmdir 1.3 ##  Copyright(C)1992 by Itagaki Fumihiko',0
+	dc.b	'## rmdir 1.4 ##  Copyright(C)1992-93 by Itagaki Fumihiko',0
 
 .even
 perror_table:
@@ -372,7 +383,7 @@ msg_colon:		dc.b	': ',0
 msg_no_memory:		dc.b	'メモリが足りません',CR,LF,0
 msg_illegal_option:	dc.b	'不正なオプション -- ',0
 msg_too_few_args:	dc.b	'引数が足りません',0
-msg_usage:		dc.b	CR,LF,'使用法:  rmdir [-ps] [-] <パス名> ...'
+msg_usage:		dc.b	CR,LF,'使用法:  rmdir [-ps] [--] <パス名> ...'
 msg_newline:		dc.b	CR,LF,0
 *****************************************************************
 .bss

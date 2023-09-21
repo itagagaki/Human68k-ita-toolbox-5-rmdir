@@ -2,6 +2,7 @@ MANIFEST       このファイル
 README         まず最初にお読み下さい
 NOTICE         版権と許諾についての告示書
 DIRECTORY      ITA製品リスト
+HUPAIR         HUPAIRについてのインフォメーション
 CHANGES        rmdirのモデルチェンジの履歴
 rmdir.1        rmdirのマニュアル
 rmdir.x        rmdir実行ファイル
