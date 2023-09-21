@@ -9,6 +9,8 @@
 * 1.1
 * Itagaki Fumihiko 29-Sep-92  読み込み専用やシステム属性が付いていても削除するようにした。
 * 1.2
+* Itagaki Fumihiko 06-Nov-92  strip_excessive_slashesのバグfixに伴う改版。
+* 1.3
 *
 * Usage: rmdir [ -ps ] [ - ] <パス名> ...
 
@@ -322,7 +324,7 @@ lchmod:
 .data
 
 	dc.b	0
-	dc.b	'## rmdir 1.2 ##  Copyright(C)1992 by Itagaki Fumihiko',0
+	dc.b	'## rmdir 1.3 ##  Copyright(C)1992 by Itagaki Fumihiko',0
 
 .even
 perror_table:
