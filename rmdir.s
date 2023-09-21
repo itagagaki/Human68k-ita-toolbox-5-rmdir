@@ -1,6 +1,12 @@
 * rmdir - remove directory
 *
 * Itagaki Fumihiko  8-Jul-91  Create.
+* 1.0
+* Itagaki Fumihiko 22-Aug-92  strip_excessive_slashes
+* Itagaki Fumihiko 22-Aug-92  -p で [?:][/] を無視する
+* Itagaki Fumihiko 24-Sep-92  ドライブを予め検査するのはやめた。
+*                             どうしたって完全にはチェックできないので。
+* 1.1
 *
 * Usage: rmdir [ -ps ] [ - ] <パス名> ...
 
@@ -9,10 +15,11 @@
 .include chrcode.h
 
 .xref DecodeHUPAIR
+.xref issjis
 .xref strlen
 .xref strfor1
+.xref strip_excessive_slashes
 .xref headtail
-.xref drvchkp
 
 STACKSIZE	equ	256
 
@@ -65,19 +72,7 @@ decode_opt_loop2:
 
 		moveq	#1,d2
 		cmp.b	#'s',d0
-		beq	set_option
-
-		bsr	werror_myname
-		lea	msg_illegal_option(pc),a0
-		bsr	werror
-		move.w	d0,-(a7)
-		move.l	#1,-(a7)
-		pea	5(a7)
-		move.w	#2,-(a7)
-		DOS	_WRITE
-		lea	12(a7),a7
-		bra	usage
-
+		bne	bad_option
 set_option:
 		bset	d1,d5
 		move.b	(a0)+,d0
@@ -92,12 +87,13 @@ decode_opt_done:
 loop:
 		movea.l	a0,a2
 		bsr	strfor1
-		exg	a0,a2
-		movea.l	a2,a3
-		move.b	-(a3),d1
+		exg	a0,a2				*  A2 : 次の引数の先頭アドレス
 
-		bsr	drvchkp
-		bmi	fail_2
+		bsr	strip_excessive_slashes
+		movea.l	a0,a3
+		bsr	strfor1
+		exg	a0,a3
+		move.b	-(a3),d1			*  A3 : この引数の末尾アドレス
 
 		bsr	do_rmdir
 		bmi	fail_2
@@ -105,23 +101,36 @@ loop:
 		btst	#0,d5
 		beq	next
 
-	*  -pが指定されている ... 明示的な親ディレクトリも消す
+	*  -p が指定されている ... 明示的な親ディレクトリも消す
+	*                          ただしドライブと / は除外
 
+		movea.l	a0,a4				*  A4 : [?:][/] をスキップした先頭
+		tst.b	(a4)
+		beq	rmdir_p_start
+
+		cmpi.b	#':',1(a4)
+		bne	rmdir_p_no_drive
+
+		addq.l	#2,a4
+rmdir_p_no_drive:
+		cmpi.b	#'/',(a4)
+		beq	rmdir_p_skip_root
+
+		cmpi.b	#'\',(a4)
+		bne	rmdir_p_start
+rmdir_p_skip_root:
+		addq.l	#1,a4
+rmdir_p_start:
 rmdir_p_loop:
+		exg	a0,a4
 		bsr	headtail
+		exg	a0,a4
 		move.b	d1,(a3)
-		moveq	#0,d0				*  means 'whole path removed'
-		cmpa.l	a0,a1
-		beq	fail_p				*  whole_path_removed
+		tst.l	d0
+		beq	whole_path_removed
 
-		move.b	-(a1),d1
-		cmp.b	#'/',d1
-		beq	rmdir_p_more
-
-		cmp.b	#'\',d1
-		bne	fail_p				*  whole_path_removed
-rmdir_p_more:
 		movea.l	a1,a3
+		move.b	-(a3),d1
 		clr.b	(a3)
 		bsr	do_rmdir
 		bpl	rmdir_p_loop
@@ -130,7 +139,11 @@ rmdir_p_more:
 fail_2:
 		moveq	#2,d6
 		btst	#0,d5
-		beq	perror_normal_and_next
+		bne	fail_p
+		bra	perror_normal_and_next
+
+whole_path_removed:
+		moveq	#0,d0				*  means 'whole path removed'
 fail_p:
 		btst	#1,d5
 		bne	next
@@ -159,6 +172,25 @@ exit_program:
 		move.w	d6,-(a7)
 		DOS	_EXIT2
 
+bad_option:
+		moveq	#1,d1
+		tst.b	(a0)
+		beq	bad_option_1
+
+		bsr	issjis
+		bne	bad_option_1
+
+		moveq	#2,d1
+bad_option_1:
+		move.l	d1,-(a7)
+		pea	-1(a0)
+		move.w	#2,-(a7)
+		bsr	werror_myname
+		lea	msg_illegal_option(pc),a0
+		bsr	werror
+		DOS	_WRITE
+		lea	10(a7),a7
+		bra	usage
 
 too_few_args:
 		bsr	werror_myname
@@ -193,21 +225,9 @@ perror:
 		cmp.l	#25,d0
 		bls	perror_2
 
-		cmp.l	#256,d0
-		blo	perror_1
-
-		sub.l	#256,d0
-		cmp.l	#4,d0
-		bhi	perror_1
-
-		lea	perror_table_2(pc),a0
-		bra	perror_3
-
-perror_1:
-		moveq	#25,d0
+		moveq	#0,d0
 perror_2:
 		lea	perror_table(pc),a0
-perror_3:
 		lsl.l	#1,d0
 		move.w	(a0,d0.l),d0
 		lea	sys_errmsgs(pc),a0
@@ -270,7 +290,7 @@ do_rmdir_return:
 .data
 
 	dc.b	0
-	dc.b	'## rmdir 1.0 ##  Copyright(C)1992 by Itagaki Fumihiko',0
+	dc.b	'## rmdir 1.1 ##  Copyright(C)1992 by Itagaki Fumihiko',0
 
 .even
 perror_table:
@@ -300,13 +320,6 @@ perror_table:
 	dc.w	msg_err-sys_errmsgs			*  23 (-24)
 	dc.w	msg_err-sys_errmsgs			*  24 (-25)
 	dc.w	msg_err-sys_errmsgs			*  25 (-26)
-.even
-perror_table_2:
-	dc.w	msg_bad_drivename-sys_errmsgs		* 256 (-257)
-	dc.w	msg_no_drive-sys_errmsgs		* 257 (-258)
-	dc.w	msg_no_media_in_drive-sys_errmsgs	* 258 (-259)
-	dc.w	msg_media_set_miss-sys_errmsgs		* 259 (-260)
-	dc.w	msg_drive_not_ready-sys_errmsgs		* 260 (-261)
 
 sys_errmsgs:
 msg_nodir:		dc.b	'このようなディレクトリはありません',0
@@ -316,11 +329,6 @@ msg_bad_drive:		dc.b	'ドライブの指定が無効です',0
 msg_current:		dc.b	'カレント・ディレクトリですので削除できません',0
 msg_write_disabled:	dc.b	'削除は許可されていません',0
 msg_not_empty:		dc.b	'ディレクトリが空でないので削除できません',0
-msg_bad_drivename:	dc.b	'ドライブ名が無効です',0
-msg_no_drive:		dc.b	'ドライブがありません',0
-msg_no_media_in_drive:	dc.b	'ドライブにメディアがセットされていません',0
-msg_media_set_miss:	dc.b	'ドライブにメディアが正しくセットされていません',0
-msg_drive_not_ready:	dc.b	'ドライブの準備ができていません',0
 msg_err:		dc.b	'削除できませんでした',0
 msg_not_removed:	dc.b	' は削除しませんでした; ',0
 msg_whole_path_removed:	dc.b	'まるごと削除しました',0

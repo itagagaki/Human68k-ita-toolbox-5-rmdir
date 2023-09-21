@@ -1,17 +1,17 @@
-# Makefile for ITA TOOLKIT #5 rmdir
+# Makefile for ITA TOOLBOX #5 rmdir
 
-AS	= \usr\pds\HAS.X -l -i $(INCLUDE)
-LK	= \usr\pds\hlk.x -x
-CV      = -\bin\CV.X -r
-INSTALL = copy
-BACKUP  = A:\bin\COPYALL.X -t
-CP      = copy
-RM      = -\usr\local\bin\rm -f
+AS	= HAS.X -i $(INCLUDE)
+LK	= hlk.x -x
+CV      = -CV.X -r
+CP      = cp
+RM      = -rm -f
 
 INCLUDE = $(HOME)/fish/include
 
-DESTDIR   = A:\usr\local\bin
-BACKUPDIR = B:\rmdir\1.0
+DESTDIR   = A:/usr/ita
+BACKUPDIR = B:/rmdir/1.1
+RELEASE_ARCHIVE = RMDIR11
+RELEASE_FILES = MANIFEST README NOTICE ../DIRECTORY CHANGES rmdir.1 rmdir.x
 
 EXTLIB = $(HOME)/fish/lib/ita.l
 
@@ -21,7 +21,7 @@ PROGRAM = rmdir.x
 
 ###
 
-.PHONY: all clean clobber install backup
+.PHONY: all clean clobber install release backup
 
 .TERMINAL: *.h *.s
 
@@ -42,13 +42,6 @@ clobber:: clean
 
 $(PROGRAM) : $(INCLUDE)/doscall.h $(INCLUDE)/chrcode.h $(EXTLIB)
 
-install::
-	$(INSTALL) $(PROGRAM) $(DESTDIR)
-
-backup::
-	$(BACKUP) *.* $(BACKUPDIR)
-
-clean::
-	$(RM) $(PROGRAM)
+include ../Makefile.sub
 
 ###
